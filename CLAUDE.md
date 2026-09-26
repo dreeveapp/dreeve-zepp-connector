@@ -303,6 +303,19 @@ Documented here so they don't get silently re-broken or re-derived:
   |  |  | 178 | snowshoeing |
   |  |  | 223 | generic movement |
 
+- **The history endpoint's page-size param is `count`, not `limit`
+  (fixed 2026-09-26).** Zepp silently ignores `limit` and returns the
+  account's *entire* history in one response with `next=-1`. Confirmed
+  live: 892 workouts / 2.6MB for `limit=3` vs 3 workouts / 11KB for
+  `count=3`. So before this fix every sync (and every hourly loop cycle)
+  downloaded the full history, and `fetch_workouts()` never actually
+  paginated. That's a plausible contributor to the `history.json ... Read
+  timed out` field report on accounts with long histories. Cursor semantics
+  (also confirmed live): `data.next` is the trackid of the *first* workout
+  on the next page (inclusive), passed back as `trackid`. Walking with
+  `count=100` returned all 892 workouts once each, in the same order as the
+  full dump. `count=1000` just returns everything (no server-side cap below
+  the history size was hit).
 - **`--limit` default is 200** (env `LIMIT`). A full historical backfill
   needs an explicit higher `--limit`/`LIMIT` (or `--since all --limit <N>`)
   — 200 is a reasonable cap for "catch up the last month or two" but will
