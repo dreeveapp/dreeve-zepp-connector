@@ -40,8 +40,13 @@ class Ledger:
         data: dict = {"entries": self._entries}
         if self._auth is not None:
             data["auth"] = self._auth
-        self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
-        # The ledger now doubles as an app_token cache - keep it off-limits
-        # to other local users, same as the .env file it's derived from.
+        # Write-then-rename so a process killed mid-save (loop.py's
+        # CYCLE_TIMEOUT kills the cycle's child process) never leaves a
+        # truncated ledger behind. chmod before the rename: the ledger now
+        # doubles as an app_token cache - keep it off-limits to other local
+        # users, same as the .env file it's derived from.
+        tmp_path = self.path.with_name(self.path.name + ".tmp")
+        tmp_path.write_text(json.dumps(data, indent=2, sort_keys=True))
         with contextlib.suppress(OSError):
-            self.path.chmod(0o600)
+            tmp_path.chmod(0o600)
+        tmp_path.replace(self.path)

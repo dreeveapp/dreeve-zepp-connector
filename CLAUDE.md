@@ -356,6 +356,29 @@ Documented here so they don't get silently re-broken or re-derived:
   also applies during `--dry-run` (the cap breaks the loop either way) —
   only `DOWNLOAD_DELAY_SECONDS`' actual `time.sleep()` is skipped in
   dry-run, since dry-run never calls `workout_detail()` to begin with.
+- **Each `loop.py` cycle runs in its own child process (added 2026-09-26,
+  after a field report: a v1.0.0 container went 10 days without syncing one
+  9h / ~32k-point workout, sitting at 30–100% CPU and growing to its 512MB
+  cap, while its logs showed almost nothing; a one-shot manual run then
+  exported it in seconds).** The root cause was never pinned down. The fix
+  targets what made it undiagnosable and unrecoverable instead:
+  (1) `_run_cycle()` starts a `spawn` child per cycle and `kill()`s it after
+  `CYCLE_TIMEOUT` (env, default 1800s, 0 = no limit). A thread can't be
+  stopped from outside in Python, so a separate process is the only way to
+  enforce the limit, and it also hands a cycle's memory back to the OS
+  after every cycle. The child re-reads `ledger.json` and reuses the cached
+  token. The parent logs in once at startup and saves the token, so
+  children don't log in again each cycle. (2) `sync()` logs each stage
+  *before* it starts (`fetching detail...`, `decoding...`,
+  `writing FIT...`) and saves the ledger after *every* export, so a killed
+  cycle keeps finished work and the last logged line shows where it hung.
+  `Ledger.save()` is now write-then-rename for the same reason.
+  (3) stdout is unbuffered (`PYTHONUNBUFFERED=1` in the Dockerfile, plus
+  `line_buffering` in `loop.run()`). Before this, stdout was block-buffered
+  under Docker, which is the likely reason "logs were mostly silence".
+  (4) data calls use `timeout=(10, 60)`. `requests`' read timeout only
+  limits the gap between received bytes, not the whole response, which is
+  why the cycle timeout is still needed on top of it.
 - **`health.py`'s `/healthz` is a liveness check, not a correctness
   check.** It returns `200` as long as the process/HTTP server is up,
   regardless of whether the last sync cycle failed - `/status`'s

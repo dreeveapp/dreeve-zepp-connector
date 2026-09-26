@@ -14,6 +14,9 @@ RUN uv sync --frozen --no-dev
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
+# Without this, stdout is block-buffered under Docker and progress lines can
+# sit unseen in the buffer for hours.
+ENV PYTHONUNBUFFERED=1
 ENV WATCH_DIR=/watch
 ENV STATE_DIR=/state
 ENV HEALTH_PORT=8080

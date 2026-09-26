@@ -48,8 +48,12 @@ def fetch_workouts(client: ZeppDataClient, cutoff: datetime | None, limit: int, 
     """
     collected: list[dict] = []
     cursor: int | str | None = None
+    page = 0
     while len(collected) < limit:
+        page += 1
+        started = time.monotonic()
         items, cursor = client.workouts_page(limit=min(page_size, limit - len(collected)), before_trackid=cursor)
+        print(f"history page {page}: {len(items)} workout(s) in {time.monotonic() - started:.1f}s")
         if not items:
             break
         collected.extend(items)
@@ -105,17 +109,40 @@ def sync(cfg: Config, client: ZeppDataClient, ledger: Ledger, dry_run: bool = Fa
             print(f"(dry-run) would export {filename} ({device_label}device_id={device_id})")
             exported += 1
         else:
+            # Stage is logged before each step (not just after) so a hang
+            # shows up in the logs as the last "..." line with no follow-up.
+            stage = "fetch detail"
             try:
+                print(f"workout {trackid}: fetching detail...")
+                started = time.monotonic()
                 detail = client.workout_detail(trackid, source=summary.get("source"))
+                fetch_s = time.monotonic() - started
+
+                stage = "decode"
+                print(f"workout {trackid}: decoding...")
+                started = time.monotonic()
                 points = decoder.parse_points(int(trackid), detail)
                 splits = decoder.parse_kilometer_splits(detail)
+                decode_s = time.monotonic() - started
+
+                stage = "write FIT"
+                print(f"workout {trackid}: writing FIT ({len(points)} track points)...")
+                started = time.monotonic()
                 output_path = cfg.watch_dir / filename
                 fit_writer.write_fit(summary, points, output_path, splits=splits, device_name=device_name)
+                write_s = time.monotonic() - started
+
                 ledger.mark(trackid, filename, datetime.now(tz=UTC).isoformat())
-                print(f"exported {filename} ({len(points)} track points)")
+                # Persist after every export so a cycle killed later (e.g. by
+                # loop.py's CYCLE_TIMEOUT) doesn't lose already-finished work.
+                ledger.save()
+                print(
+                    f"exported {filename} ({len(points)} track points; "
+                    f"fetch {fetch_s:.1f}s, decode {decode_s:.1f}s, write {write_s:.1f}s)"
+                )
                 exported += 1
             except Exception as e:
-                print(f"failed to export workout {trackid}: {e}", file=sys.stderr)
+                print(f"failed to export workout {trackid} at {stage}: {e}", file=sys.stderr)
                 failed += 1
 
             if cfg.download_delay_seconds:
