@@ -109,6 +109,7 @@ def _cfg(tmp_path, **overrides) -> Config:
         "max_downloads_per_cycle": None,
         "poll_interval_seconds": 3600,
         "health_port": 8080,
+        "cycle_timeout_seconds": 1800,
     }
     defaults.update(overrides)
     return Config(**defaults)

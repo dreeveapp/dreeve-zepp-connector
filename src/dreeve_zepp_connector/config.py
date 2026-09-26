@@ -55,6 +55,7 @@ class Config:
     max_downloads_per_cycle: int | None
     poll_interval_seconds: int
     health_port: int
+    cycle_timeout_seconds: int = 1800
 
     @classmethod
     def from_env(
@@ -91,6 +92,9 @@ class Config:
         max_downloads_per_cycle = int(raw_max_downloads) if raw_max_downloads else None
         poll_interval_seconds = int(os.environ.get("POLL_INTERVAL", "3600"))
         health_port = int(os.environ.get("HEALTH_PORT", "8080"))
+        # Hard wall-clock cap on one loop.py sync cycle (0 disables) - see
+        # loop._run_cycle for why this has to be a separate process.
+        cycle_timeout_seconds = int(os.environ.get("CYCLE_TIMEOUT", "1800"))
 
         return cls(
             email=email,
@@ -108,4 +112,5 @@ class Config:
             max_downloads_per_cycle=max_downloads_per_cycle,
             poll_interval_seconds=poll_interval_seconds,
             health_port=health_port,
+            cycle_timeout_seconds=cycle_timeout_seconds,
         )

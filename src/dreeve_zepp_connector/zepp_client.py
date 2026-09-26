@@ -32,6 +32,11 @@ import requests
 
 DATA_HOST = "api-mifit.zepp.com"
 
+# (connect, read) seconds. `read` bounds the gap between received bytes, not
+# the whole response - a slow trickle can still take longer overall, which
+# is what loop.py's per-cycle CYCLE_TIMEOUT backstops.
+_DATA_TIMEOUT = (10, 60)
+
 # Zepp's web-app login identity, as opposed to huami-token's mobile
 # `com.huami.midong` identity (see module docstring).
 _WEB_APP_NAME = "com.huami.webapp"
@@ -218,7 +223,7 @@ class ZeppDataClient:
 
         for attempt in range(self.max_retries + 1):
             try:
-                r = self._http.get(url, headers=_data_headers(token), params=params, timeout=30)
+                r = self._http.get(url, headers=_data_headers(token), params=params, timeout=_DATA_TIMEOUT)
             except requests.exceptions.RequestException as e:
                 if attempt >= self.max_retries:
                     raise ZeppClientError(f"{path} failed after {attempt + 1} attempts: {e}") from e
