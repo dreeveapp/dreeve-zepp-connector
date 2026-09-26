@@ -23,9 +23,11 @@ class FakeHttp:
     def __init__(self, responses: list):
         self.responses = list(responses)
         self.calls = 0
+        self.params: list[dict | None] = []
 
     def get(self, url, headers=None, params=None, timeout=None):
         self.calls += 1
+        self.params.append(params)
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -104,3 +106,19 @@ def test_401_still_drops_token_and_retries_once_without_backoff(monkeypatch):
 
     assert result == {"data": "ok"}
     assert client.app_token == "fresh-token"
+
+
+def test_workouts_page_sends_page_size_as_count_and_returns_cursor():
+    # `count`, not `limit` - Zepp ignores `limit` and returns the whole
+    # history with next=-1 (see workouts_page()).
+    body = {"data": {"next": 1789990471, "summary": [{"trackid": "1790440058", "source": "run.mi.com"}]}}
+    client = _client([FakeResponse(200, body)])
+
+    items, cursor = client.workouts_page(limit=3, before_trackid=1790500000)
+
+    params = client._http.params[0]
+    assert params["count"] == "3"
+    assert "limit" not in params
+    assert params["trackid"] == "1790500000"
+    assert [w["trackid"] for w in items] == ["1790440058"]
+    assert cursor == 1789990471

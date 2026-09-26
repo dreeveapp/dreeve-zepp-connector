@@ -265,7 +265,12 @@ class ZeppDataClient:
         to continue further into the past. Returns `(items, next_cursor)`;
         `next_cursor` is None once there are no more pages.
         """
-        params = {"source": "run.mi.com", "userid": self.user_id, "limit": str(limit)}
+        # The page-size param is `count`. Zepp silently ignores `limit` and
+        # returns the account's *entire* history in one response with
+        # `next=-1` (confirmed live 2026-09-26: 892 workouts / 2.6MB for
+        # `limit=3`, vs 3 workouts / 11KB for `count=3`), which made every
+        # sync download everything and never actually paginate.
+        params = {"source": "run.mi.com", "userid": self.user_id, "count": str(limit)}
         if before_trackid is not None:
             params["trackid"] = str(before_trackid)
         j = self._get("/v1/sport/run/history.json", params)
