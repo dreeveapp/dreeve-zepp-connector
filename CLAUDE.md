@@ -126,7 +126,11 @@ Documented here so they don't get silently re-broken or re-derived:
   unexpected shape, and `fit_writer._build_laps()` additionally cross-checks
   split count against the workout's total distance before trusting
   it — either gate failing falls back to a single whole-workout lap rather
-  than emit a wrong split.
+  than emit a wrong split. A non-positive `field[6]` also bails out to the
+  single-lap fallback, in both the parser and `_build_laps()`. Workout
+  1764847391 failed with `total_elapsed_time encoded value -1 is not in
+  valid range` — exactly what a -1ms duration encodes to — so at least some
+  workouts carry a `-1` sentinel there instead of a real duration.
 - **There is no device-model field anywhere in Zepp's workout API data.**
   Checked live across summary and detail responses — `deviceid`/`sn` are
   opaque serial numbers, nothing human-readable. Confirmed against a real

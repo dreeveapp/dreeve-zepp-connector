@@ -323,6 +323,42 @@ def test_build_fit_falls_back_to_single_lap_when_splits_inconsistent():
     assert laps[0].total_distance == 2500.0
 
 
+def test_build_fit_falls_back_to_single_lap_when_split_duration_invalid():
+    # Workout 1764847391 failed with "total_elapsed_time encoded value -1 is
+    # not in valid range", which is what a -1ms split duration encodes to.
+    # A bad split must fall back to one whole-workout lap, not fail the
+    # whole export.
+    points = [
+        ExportablePoint(
+            time=datetime.fromtimestamp(START_TRACKID, tz=UTC),
+            latitude=40.0,
+            longitude=-73.95,
+            altitude=10.0,
+            heart_rate=120,
+            cadence=170,
+            distance=0.0,
+        ),
+        ExportablePoint(
+            time=datetime.fromtimestamp(START_TRACKID + 600, tz=UTC),
+            latitude=40.02,
+            longitude=-73.95,
+            altitude=10.0,
+            heart_rate=150,
+            cadence=170,
+            distance=1500.0,
+        ),
+    ]
+    splits = [KilometerSplit(index=0, duration_ms=-1, avg_heart_rate=140)]
+    summary = {"trackid": str(START_TRACKID), "type": 1, "dis": 1500, "calorie": 100, "avg_heart_rate": 135}
+
+    data = build_fit(summary, points, splits=splits)
+    laps = _messages(data, "LapMessage")
+
+    assert len(laps) == 1
+    assert laps[0].total_distance == 1500.0
+    assert laps[0].total_elapsed_time == 600.0
+
+
 def test_build_fit_emits_device_info_only_when_name_given():
     # Zepp's API doesn't expose the recording device's model anywhere in
     # workout data - device_name can only ever be a caller-supplied value,

@@ -358,6 +358,13 @@ def parse_kilometer_splits(detail: dict) -> list[KilometerSplit]:
             avg_hr = int(float(fields[4]))
         except ValueError:
             return []
+        # Some workouts can carry a -1 sentinel instead of a real duration
+        # here. Treating it as a duration would produce a -0.001s lap, which
+        # FIT cannot encode ("total_elapsed_time encoded value -1 is not in
+        # valid range") - bail out to the single-lap fallback instead of
+        # trusting the whole layout.
+        if duration_ms <= 0:
+            return []
         splits.append(
             KilometerSplit(index=index, duration_ms=duration_ms, avg_heart_rate=avg_hr if avg_hr > 0 else None)
         )

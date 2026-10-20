@@ -313,7 +313,13 @@ def _build_laps(
     """One lap per completed kilometer (from `splits`) plus a trailing
     partial lap for the remainder, when `splits` looks consistent with
     `total_distance`; otherwise a single lap spanning the whole workout."""
-    splits_valid = bool(splits) and len(splits) == int(total_distance // 1000)
+    # A non-positive duration can't be encoded (FIT's total_elapsed_time is
+    # uint32, scaled by 1000, so even -1ms becomes the invalid encoded value
+    # -1). parse_kilometer_splits() already drops such splits, but check here
+    # too so a caller-supplied split can never crash the whole file.
+    splits_valid = (
+        bool(splits) and len(splits) == int(total_distance // 1000) and all(s.duration_ms > 0 for s in splits)
+    )
     if not splits_valid:
         lap = LapMessage()
         lap.timestamp = end_ms

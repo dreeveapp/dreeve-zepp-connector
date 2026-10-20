@@ -114,6 +114,15 @@ def test_parse_kilometer_splits_decodes_real_sample():
     assert [s.avg_heart_rate for s in splits] == [110, 132, 120]
 
 
+def test_parse_kilometer_splits_rejects_non_positive_duration():
+    # Some workouts use -1 as a sentinel in the duration column. Encoding
+    # that as a lap gives total_elapsed_time = -0.001s, which fit_tool
+    # rejects ("encoded value -1 is not in valid range") - fall back to a
+    # single whole-workout lap rather than crashing the export.
+    assert parse_kilometer_splits({"kilo_pace": "0,177,ez1z787g2p,-1,110,177,-1,20,0,0,12,14,0,0,0"}) == []
+    assert parse_kilometer_splits({"kilo_pace": "0,0,ez1z787g2p,-1,110,0,0,20,0,0,12,14,0,0,0"}) == []
+
+
 def test_parse_kilometer_splits_returns_empty_when_absent():
     assert parse_kilometer_splits({}) == []
     assert parse_kilometer_splits({"kilo_pace": ""}) == []
